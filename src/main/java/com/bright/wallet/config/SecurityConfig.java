@@ -76,14 +76,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // ── Public — no token needed ──────────────────────────
                         .requestMatchers(
-                                "/auth/login",
-                                "/auth/forgot-password",
-                                "/auth/reset-password",
-                                "/auth/verify-email",
-                                "/auth/resend-verification",
-                                "/register",
-                                "/users",
-                                "/payments/webhook"     // Paystack webhook — HMAC-SHA512-verified, no JWT
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/verify-email",
+                                "/api/auth/resend-verification",
+                                "/api/users",
+                                "/api/payments/webhook"     // Paystack webhook — HMAC-SHA512-verified, no JWT
                         ).permitAll()
 
                         // ── Admin only ────────────────────────────────────────
