@@ -31,7 +31,9 @@ public class CorsConfig {
         // Allow requests from the Vue dev server
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",   // Vite dev server
-                "http://localhost:4173"    // Vite preview server
+                "http://localhost:4173",   // Vite preview server
+                "http://nyukzin-wallet-frontend.s3-website.af-south-1.amazonaws.com",
+                "https://d20lo4xu4wwlof.cloudfront.net"
         ));
 
         // Allow all standard HTTP methods

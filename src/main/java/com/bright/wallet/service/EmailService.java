@@ -10,6 +10,8 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
+    @Value("${frontend.url:http://localhost:5173}")
+    private String frontendUrl;
     // Pulled from spring.mail.username in application.properties
     // so the From address is always in sync with the authenticated account
     @Value("${spring.mail.username}")
@@ -24,7 +26,8 @@ public class EmailService {
     // =========================
     public void sendVerificationEmail(String name, String email, String token) {
 
-        String verifyLink = "http://localhost:5173/verify-email?token=" + token;
+        // In sendVerificationEmail:
+        String verifyLink = frontendUrl + "/verify-email?token=" + token;
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
@@ -48,7 +51,8 @@ public class EmailService {
     // =========================
     public void sendResetEmail(String name, String email, String token) {
 
-        String resetLink = "http://localhost:5173/reset-password?token=" + token;
+        // In sendResetEmail:
+        String resetLink = frontendUrl + "/reset-password?token=" + token;
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
