@@ -19,20 +19,19 @@ import java.util.stream.Collectors;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final WalletRepository walletRepository;
+    private final WalletRepository      walletRepository;
+    private final EmailService          emailService;           // ← added
 
     public TransactionService(TransactionRepository transactionRepository,
-                              WalletRepository walletRepository) {
+                              WalletRepository walletRepository,
+                              EmailService emailService) {      // ← added
         this.transactionRepository = transactionRepository;
         this.walletRepository      = walletRepository;
+        this.emailService          = emailService;              // ← added
     }
 
     // ─── GUARDS ───────────────────────────────────────────────────────────────
 
-    /**
-     * Blocks admin accounts from initiating transactions.
-     * Admins are management only — not money participants.
-     */
     private void blockIfAdmin(User user) {
         if (user.getRole().equals("ROLE_ADMIN")) {
             throw new IllegalArgumentException(
@@ -41,11 +40,6 @@ public class TransactionService {
         }
     }
 
-    /**
-     * Blocks transfers TO an admin wallet.
-     * Admin accounts have no financial role in the system —
-     * they should neither send nor receive money.
-     */
     private void blockIfReceiverIsAdmin(Wallet receiverWallet) {
         if (receiverWallet.getUser().getRole().equals("ROLE_ADMIN")) {
             throw new IllegalArgumentException(
@@ -59,19 +53,15 @@ public class TransactionService {
     @Transactional
     public TransactionResponse transfer(Long senderWalletId, Long receiverWalletId,
                                         BigDecimal amount, User currentUser) {
-        // Block admin from sending
         blockIfAdmin(currentUser);
 
-        // Verify sender wallet belongs to logged-in user
         Wallet senderWallet = walletRepository
                 .findByIdAndUser(senderWalletId, currentUser)
                 .orElseThrow(() -> new UnauthorizedAccessException(
                         "Access denied. Wallet " + senderWalletId + " does not belong to you."));
 
-        // Load receiver wallet
         Wallet receiverWallet = findWalletById(receiverWalletId);
 
-        // Block transfer TO admin wallet
         blockIfReceiverIsAdmin(receiverWallet);
 
         if (senderWalletId.equals(receiverWalletId)) {
@@ -95,7 +85,31 @@ public class TransactionService {
             walletRepository.save(receiverWallet);
 
             transaction.setStatus("SUCCESS");
-            return new TransactionResponse(transactionRepository.save(transaction));
+            TransactionResponse response =
+                    new TransactionResponse(transactionRepository.save(transaction));
+
+            // ── Notify both parties ───────────────────────────────────────────
+            String senderName    = senderWallet.getUser().getName();
+            String senderEmail   = senderWallet.getUser().getEmail();
+            String receiverName  = receiverWallet.getUser().getName();
+            String receiverEmail = receiverWallet.getUser().getEmail();
+
+            emailService.sendTransferSentEmail(
+                    senderName, senderEmail,
+                    receiverName,
+                    amount,
+                    senderWallet.getBalance()       // balance after deduction
+            );
+
+            emailService.sendTransferReceivedEmail(
+                    receiverName, receiverEmail,
+                    senderName,
+                    amount,
+                    receiverWallet.getBalance()     // balance after credit
+            );
+            // ─────────────────────────────────────────────────────────────────
+
+            return response;
 
         } catch (IllegalStateException e) {
             throw e;
@@ -136,7 +150,19 @@ public class TransactionService {
             walletRepository.save(wallet);
 
             transaction.setStatus("SUCCESS");
-            return new TransactionResponse(transactionRepository.save(transaction));
+            TransactionResponse response =
+                    new TransactionResponse(transactionRepository.save(transaction));
+
+            // ── Notify user ───────────────────────────────────────────────────
+            emailService.sendWithdrawalEmail(
+                    currentUser.getName(),
+                    currentUser.getEmail(),
+                    amount,
+                    wallet.getBalance()     // balance after deduction
+            );
+            // ─────────────────────────────────────────────────────────────────
+
+            return response;
 
         } catch (IllegalStateException e) {
             throw e;
@@ -184,7 +210,7 @@ public class TransactionService {
 
         return transactionRepository
                 .findBySenderWalletIdOrReceiverWalletIdOrderByCreatedAtDesc(
-                        wallet.getId(), wallet.getId())          // ← ID, not object
+                        wallet.getId(), wallet.getId())
                 .stream()
                 .map(TransactionResponse::new)
                 .collect(Collectors.toList());
@@ -197,7 +223,7 @@ public class TransactionService {
                         "Access denied. Wallet " + walletId + " does not belong to you."));
 
         return transactionRepository
-                .findBySenderWalletId(wallet.getId())            // ← ID, not object
+                .findBySenderWalletId(wallet.getId())
                 .stream()
                 .map(TransactionResponse::new)
                 .collect(Collectors.toList());
@@ -210,7 +236,7 @@ public class TransactionService {
                         "Access denied. Wallet " + walletId + " does not belong to you."));
 
         return transactionRepository
-                .findByReceiverWalletId(wallet.getId())          // ← ID, not object
+                .findByReceiverWalletId(wallet.getId())
                 .stream()
                 .map(TransactionResponse::new)
                 .collect(Collectors.toList());
